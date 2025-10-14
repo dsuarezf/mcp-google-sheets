@@ -1049,6 +1049,211 @@ def format_cells(spreadsheet_id: str,
 
     return result
 
+
+@mcp.tool()
+def create_chart(spreadsheet_id: str,
+                 sheet: str,
+                 chart_type: str,
+                 data_range: str,
+                 title: Optional[str] = None,
+                 position_row: int = 0,
+                 position_col: int = 0,
+                 ctx: Context = None) -> Dict[str, Any]:
+    """
+    Create a chart in a Google Spreadsheet.
+
+    Args:
+        spreadsheet_id: The ID of the spreadsheet (found in the URL)
+        sheet: The name of the sheet where the chart will be added
+        chart_type: Type of chart. Supported types: 'PIE', 'BAR', 'COLUMN', 'LINE', 'AREA', 'SCATTER'
+        data_range: Data range in A1 notation (e.g., 'J1:K7')
+        title: Optional chart title
+        position_row: Row index where to place the chart (0-based, default: 0)
+        position_col: Column index where to place the chart (0-based, default: 0)
+
+    Returns:
+        Result of the chart creation operation
+    """
+    sheets_service = ctx.request_context.lifespan_context.sheets_service
+
+    # Get sheet ID
+    spreadsheet = sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+    sheet_id = None
+
+    for s in spreadsheet['sheets']:
+        if s['properties']['title'] == sheet:
+            sheet_id = s['properties']['sheetId']
+            break
+
+    if sheet_id is None:
+        return {"error": f"Sheet '{sheet}' not found"}
+
+    # Map chart type strings to Google Sheets API chart types
+    chart_type_map = {
+        'PIE': 'PIE',
+        'BAR': 'BAR',
+        'COLUMN': 'COLUMN',
+        'LINE': 'LINE',
+        'AREA': 'AREA',
+        'SCATTER': 'SCATTER'
+    }
+
+    chart_type_upper = chart_type.upper()
+    if chart_type_upper not in chart_type_map:
+        return {"error": f"Unsupported chart type: {chart_type}. Supported types: {', '.join(chart_type_map.keys())}"}
+
+    # Build the chart specification
+    chart_spec = {
+        "basicChart": {
+            "chartType": chart_type_map[chart_type_upper],
+            "legendPosition": "RIGHT_LEGEND",
+            "axis": [],
+            "domains": [],
+            "series": []
+        }
+    }
+
+    # For pie charts, use pieChart instead of basicChart
+    if chart_type_upper == 'PIE':
+        chart_spec = {
+            "pieChart": {
+                "legendPosition": "RIGHT_LEGEND",
+                "domain": {
+                    "sourceRange": {
+                        "sources": [
+                            {
+                                "sheetId": sheet_id,
+                                "startRowIndex": None,  # Will be set from data_range
+                                "endRowIndex": None,
+                                "startColumnIndex": None,
+                                "endColumnIndex": None
+                            }
+                        ]
+                    }
+                },
+                "series": {
+                    "sourceRange": {
+                        "sources": [
+                            {
+                                "sheetId": sheet_id,
+                                "startRowIndex": None,  # Will be set from data_range
+                                "endRowIndex": None,
+                                "startColumnIndex": None,
+                                "endColumnIndex": None
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+    # Parse A1 notation to get row/column indices
+    import re
+    match = re.match(r'([A-Z]+)(\d+):([A-Z]+)(\d+)', data_range)
+    if not match:
+        return {"error": f"Invalid range format: {data_range}. Expected format like 'A1:B10'"}
+
+    def col_to_index(col: str) -> int:
+        """Convert column letter to 0-based index"""
+        result = 0
+        for char in col:
+            result = result * 26 + (ord(char) - ord('A') + 1)
+        return result - 1
+
+    start_col = col_to_index(match.group(1))
+    start_row = int(match.group(2)) - 1
+    end_col = col_to_index(match.group(3)) + 1
+    end_row = int(match.group(4))
+
+    # Update the chart spec with the data range
+    if chart_type_upper == 'PIE':
+        # For pie chart, domain is first column, series is second column
+        chart_spec["pieChart"]["domain"]["sourceRange"]["sources"][0].update({
+            "startRowIndex": start_row,
+            "endRowIndex": end_row,
+            "startColumnIndex": start_col,
+            "endColumnIndex": start_col + 1
+        })
+        chart_spec["pieChart"]["series"]["sourceRange"]["sources"][0].update({
+            "startRowIndex": start_row,
+            "endRowIndex": end_row,
+            "startColumnIndex": start_col + 1,
+            "endColumnIndex": end_col
+        })
+    else:
+        # For other chart types, use basicChart structure
+        chart_spec["basicChart"]["domains"] = [
+            {
+                "domain": {
+                    "sourceRange": {
+                        "sources": [
+                            {
+                                "sheetId": sheet_id,
+                                "startRowIndex": start_row,
+                                "endRowIndex": end_row,
+                                "startColumnIndex": start_col,
+                                "endColumnIndex": start_col + 1
+                            }
+                        ]
+                    }
+                }
+            }
+        ]
+        chart_spec["basicChart"]["series"] = [
+            {
+                "series": {
+                    "sourceRange": {
+                        "sources": [
+                            {
+                                "sheetId": sheet_id,
+                                "startRowIndex": start_row,
+                                "endRowIndex": end_row,
+                                "startColumnIndex": start_col + 1,
+                                "endColumnIndex": end_col
+                            }
+                        ]
+                    }
+                }
+            }
+        ]
+
+    # Build the request
+    request_body = {
+        "requests": [
+            {
+                "addChart": {
+                    "chart": {
+                        "spec": chart_spec,
+                        "position": {
+                            "overlayPosition": {
+                                "anchorCell": {
+                                    "sheetId": sheet_id,
+                                    "rowIndex": position_row,
+                                    "columnIndex": position_col
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        ]
+    }
+
+    # Add title if provided
+    if title:
+        if chart_type_upper == 'PIE':
+            chart_spec["pieChart"]["title"] = title
+        else:
+            chart_spec["basicChart"]["chartTitle"] = title
+
+    # Execute the request
+    result = sheets_service.spreadsheets().batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body=request_body
+    ).execute()
+
+    return result
+
 def main():
     # Run the server
     print("Starting Google Sheets MCP server...")

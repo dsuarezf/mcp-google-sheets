@@ -84,8 +84,9 @@ You're ready! Start issuing commands via your MCP client.
 ## ✨ Key Features
 
 *   **Seamless Integration:** Connects directly to Google Drive & Google Sheets APIs.
-*   **Comprehensive Tools:** Offers a wide range of operations (CRUD, listing, batching, sharing, cell formatting, etc.).
+*   **Comprehensive Tools:** Offers a wide range of operations (CRUD, listing, batching, sharing, cell formatting, charts, etc.).
 *   **Cell Formatting:** Apply number formats, colors, text styles, and alignment to spreadsheet cells.
+*   **Chart Creation:** Create various chart types (pie, bar, column, line, area, scatter) from spreadsheet data.
 *   **Flexible Authentication:** Supports **Service Accounts (recommended)**, OAuth 2.0, and direct credential injection via environment variables.
 *   **Easy Deployment:** Run instantly with `uvx` (zero-install feel) or clone for development using `uv`.
 *   **AI-Ready:** Designed for use with MCP-compatible clients, enabling natural language spreadsheet interaction.
@@ -158,6 +159,15 @@ This server exposes the following tools for interacting with Google Sheets:
     *   `text_format` (optional object): Text format with keys like `bold`, `italic`, `fontSize`, `foregroundColor`, etc. Example: `{'bold': True, 'fontSize': 11}`.
     *   `horizontal_alignment` (optional string): One of: `LEFT`, `CENTER`, `RIGHT`.
     *   _Returns:_ Format operation result object.
+*   **`create_chart`**: Create a chart in a Google Spreadsheet.
+    *   `spreadsheet_id` (string)
+    *   `sheet` (string): Name of the sheet where the chart will be added.
+    *   `chart_type` (string): Type of chart. Supported types: `PIE`, `BAR`, `COLUMN`, `LINE`, `AREA`, `SCATTER`.
+    *   `data_range` (string): Data range in A1 notation (e.g., `'J1:K7'`).
+    *   `title` (optional string): Chart title.
+    *   `position_row` (optional integer, default 0): Row index where to place the chart (0-based).
+    *   `position_col` (optional integer, default 0): Column index where to place the chart (0-based).
+    *   _Returns:_ Chart creation result object.
 *   **`add_columns`**: Adds columns to a sheet. *(Verify parameters if implemented)*
 *   **`copy_sheet`**: Duplicates a sheet within a spreadsheet. *(Verify parameters if implemented)*
 *   **`rename_sheet`**: Renames an existing sheet. *(Verify parameters if implemented)*
@@ -471,6 +481,9 @@ Once connected, try prompts like:
 *   "Format cells A1:E1 in Sheet1 with orange background, bold black text."
 *   "Apply currency formatting to cells E2:E10 in the 'Sales' sheet."
 *   "Center align the text in cells B1:D1 and make them bold."
+*   "Create a pie chart in Sheet1 using data from J1:K7 titled 'Department Salary Distribution'."
+*   "Add a column chart showing sales by month using data from A1:B12."
+*   "Create a line chart at position row 5, column 8 with the data from C1:D20."
 
 ---
 
