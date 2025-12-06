@@ -1217,6 +1217,10 @@ def create_chart(spreadsheet_id: str,
             }
         ]
 
+    # Add title if provided (title goes directly in spec, not inside pieChart/basicChart)
+    if title:
+        chart_spec["title"] = title
+
     # Build the request
     request_body = {
         "requests": [
@@ -1238,13 +1242,6 @@ def create_chart(spreadsheet_id: str,
             }
         ]
     }
-
-    # Add title if provided
-    if title:
-        if chart_type_upper == 'PIE':
-            chart_spec["pieChart"]["title"] = title
-        else:
-            chart_spec["basicChart"]["chartTitle"] = title
 
     # Execute the request
     result = sheets_service.spreadsheets().batchUpdate(
