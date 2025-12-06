@@ -168,6 +168,11 @@ This server exposes the following tools for interacting with Google Sheets:
     *   `position_row` (optional integer, default 0): Row index where to place the chart (0-based).
     *   `position_col` (optional integer, default 0): Column index where to place the chart (0-based).
     *   _Returns:_ Chart creation result object.
+*   **`delete_chart`**: Delete a chart from a Google Spreadsheet.
+    *   `spreadsheet_id` (string)
+    *   `sheet` (string): Name of the sheet containing the chart.
+    *   `chart_id` (optional integer): Chart ID to delete. If not provided, deletes all charts in the sheet.
+    *   _Returns:_ Object with `deletedCharts` (list of chart IDs), `count` (number of charts deleted), and `result`.
 *   **`add_columns`**: Adds columns to a sheet. *(Verify parameters if implemented)*
 *   **`copy_sheet`**: Duplicates a sheet within a spreadsheet. *(Verify parameters if implemented)*
 *   **`rename_sheet`**: Renames an existing sheet. *(Verify parameters if implemented)*

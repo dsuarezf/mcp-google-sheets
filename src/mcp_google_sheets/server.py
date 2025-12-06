@@ -1254,6 +1254,81 @@ def create_chart(spreadsheet_id: str,
 
     return result
 
+
+@mcp.tool()
+def delete_chart(spreadsheet_id: str,
+                 sheet: str,
+                 chart_id: Optional[int] = None,
+                 ctx: Context = None) -> Dict[str, Any]:
+    """
+    Delete a chart from a Google Spreadsheet.
+
+    Args:
+        spreadsheet_id: The ID of the spreadsheet (found in the URL)
+        sheet: The name of the sheet containing the chart
+        chart_id: Optional chart ID to delete. If not provided, deletes all charts in the sheet
+
+    Returns:
+        Result of the chart deletion operation
+    """
+    sheets_service = ctx.request_context.lifespan_context.sheets_service
+
+    # Get sheet ID and charts
+    spreadsheet = sheets_service.spreadsheets().get(
+        spreadsheetId=spreadsheet_id,
+        includeGridData=False
+    ).execute()
+
+    sheet_id = None
+    charts_to_delete = []
+
+    for s in spreadsheet['sheets']:
+        if s['properties']['title'] == sheet:
+            sheet_id = s['properties']['sheetId']
+            # Get charts from this sheet
+            if 'charts' in s:
+                for chart in s['charts']:
+                    if chart_id is None:
+                        # Delete all charts if no chart_id specified
+                        charts_to_delete.append(chart['chartId'])
+                    elif chart['chartId'] == chart_id:
+                        # Delete specific chart
+                        charts_to_delete.append(chart['chartId'])
+            break
+
+    if sheet_id is None:
+        return {"error": f"Sheet '{sheet}' not found"}
+
+    if not charts_to_delete:
+        if chart_id is not None:
+            return {"error": f"Chart with ID {chart_id} not found in sheet '{sheet}'"}
+        else:
+            return {"message": f"No charts found in sheet '{sheet}'"}
+
+    # Build the delete requests
+    requests = []
+    for cid in charts_to_delete:
+        requests.append({
+            "deleteEmbeddedObject": {
+                "objectId": cid
+            }
+        })
+
+    request_body = {"requests": requests}
+
+    # Execute the request
+    result = sheets_service.spreadsheets().batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body=request_body
+    ).execute()
+
+    return {
+        "deletedCharts": charts_to_delete,
+        "count": len(charts_to_delete),
+        "result": result
+    }
+
+
 def main():
     # Run the server
     print("Starting Google Sheets MCP server...")
